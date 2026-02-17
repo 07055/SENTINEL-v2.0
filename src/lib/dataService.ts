@@ -19,7 +19,7 @@ export const fetchMarketData = async (
 ): Promise<PriceData[]> => {
     try {
         const response = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${symbol.toUpperCase()}&interval=${interval}&limit=${limit}`
+            `/api/binance?symbol=${symbol.toUpperCase()}&interval=${interval}&limit=${limit}`
         );
 
         if (!response.ok) {

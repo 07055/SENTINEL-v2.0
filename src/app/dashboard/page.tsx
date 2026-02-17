@@ -3,31 +3,67 @@
 import { useEffect, useState } from 'react';
 import { TradingChart } from '@/components/TradingChart';
 import { fetchMarketData, PriceData } from '@/lib/dataService';
+import { fetchStockData, StockData } from '@/lib/stockService';
 import { generatePrediction, PredictionResult } from '@/lib/predictionEngine';
 import { CandlestickData, LineData } from 'lightweight-charts';
-import { TrendingUp, TrendingDown, Activity, ShieldCheck, Zap, Globe } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, ShieldCheck, Zap, Globe, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import RiskDisclaimer from '@/components/RiskDisclaimer';
+import AssetToggler from '@/components/AssetToggler';
+import SearchComponent from '@/components/SearchComponent';
 
 export default function Dashboard() {
-  const [data, setData] = useState<PriceData[]>([]);
+  const [mode, setMode] = useState<'CRYPTO' | 'STOCKS'>('CRYPTO');
+  const [data, setData] = useState<PriceData[] | StockData[]>([]);
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [symbol, setSymbol] = useState('BTCUSDT');
 
+  // New Search Handler
+  const handleSearch = async () => {
+    setLoading(true);
+    setPrediction(null); // Reset prediction on new search
+
+    try {
+      if (mode === 'CRYPTO') {
+        const history = await fetchMarketData(symbol, '1d', 150);
+        setData(history);
+      } else {
+        const history = await fetchStockData(symbol);
+        setData(history);
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial Load & Mode Switch
   useEffect(() => {
+    const defaultSymbol = mode === 'CRYPTO' ? 'BTCUSDT' : 'IBM';
+    setSymbol(defaultSymbol);
+
+    // Auto-trigger search when mode changes
     const init = async () => {
       setLoading(true);
-      const history = await fetchMarketData(symbol, '1d', 150);
-      setData(history);
+      setPrediction(null);
+      if (mode === 'CRYPTO') {
+        const history = await fetchMarketData(defaultSymbol, '1d', 150);
+        setData(history);
+      } else {
+        const history = await fetchStockData(defaultSymbol);
+        setData(history);
+      }
       setLoading(false);
     };
     init();
-  }, [symbol]);
+  }, [mode]);
 
   const handlePredict = () => {
     if (data.length > 0) {
-      const result = generatePrediction(data);
+      // Cast to PriceData[] because structure is compatible for prediction engine
+      const result = generatePrediction(data as PriceData[]);
       setPrediction(result);
     }
   };
@@ -45,17 +81,6 @@ export default function Dashboard() {
     value: p.value,
   }));
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#030712]">
-        <div className="text-cyber-blue animate-pulse flex flex-col items-center">
-          <Activity size={48} className="mb-4" />
-          <p className="text-xl font-mono">FETCHING BINANCE STREAM...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <main className="min-h-screen p-6 lg:p-12 space-y-8 bg-[#030712]">
       <RiskDisclaimer />
@@ -65,27 +90,27 @@ export default function Dashboard() {
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-white mb-2 flex items-center gap-3">
             <ShieldCheck className="text-cyber-blue" size={32} />
-            SENTINEL <span className="text-cyber-blue">v2.0</span>
+            SENTINEL <span className="text-cyber-blue">v3.0</span>
           </h1>
           <p className="text-gray-400 font-mono flex items-center gap-2">
             <Globe size={14} className="text-cyber-blue" />
-            LIVE BINANCE MAINNET CONNECTION
+            {mode === 'CRYPTO' ? 'LIVE BINANCE CONNECTION' : 'ALPHA VANTAGE STOCK FEED'}
           </p>
         </div>
-        <div className="flex gap-4">
-          <select
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="glass-panel px-4 py-2 rounded-lg bg-transparent text-white border-blue-500/30 focus:outline-none font-mono"
-          >
-            <option value="BTCUSDT">BTC/USDT</option>
-            <option value="ETHUSDT">ETH/USDT</option>
-            <option value="SOLUSDT">SOL/USDT</option>
-            <option value="BNBUSDT">BNB/USDT</option>
-          </select>
+
+        <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
+          <AssetToggler mode={mode} setMode={setMode} />
+
+          <SearchComponent
+            symbol={symbol}
+            setSymbol={setSymbol}
+            mode={mode}
+            onSearch={handleSearch}
+          />
+
           <div className="glass-panel px-4 py-2 rounded-lg flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-cyber-neon animate-pulse" />
-            <span className="text-sm font-mono text-cyber-neon uppercase tracking-widest">Market Open</span>
+            <span className="text-sm font-mono text-cyber-neon uppercase tracking-widest">Active</span>
           </div>
         </div>
       </header>
@@ -94,38 +119,57 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Market Stats */}
         <div className="space-y-4">
-          {[
-            { label: symbol, value: '$' + data[data.length - 1]?.close.toLocaleString(), change: '+', icon: Activity, color: 'text-cyber-blue' },
-            { label: 'RSI (14)', value: prediction?.rsiValue || '52', change: 'Neutral', icon: Zap, color: 'text-yellow-400' },
-          ].map((stat, i) => (
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              key={stat.label}
-              className="glass-panel p-6 rounded-2xl border-l-4 border-l-cyber-blue"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <stat.icon className={stat.color} size={24} />
-                <span className="text-xs font-mono text-gray-500 uppercase">{stat.label}</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{stat.value}</p>
-              <div className="text-sm text-gray-500 font-mono mt-1">{stat.change}</div>
-            </motion.div>
-          ))}
+          {/* Dynamic Stats based on data */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="glass-panel p-6 rounded-2xl border-l-4 border-l-cyber-blue"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <Activity className="text-cyber-blue" size={24} />
+              <span className="text-xs font-mono text-gray-500 uppercase">{symbol}</span>
+            </div>
+            <p className="text-2xl font-bold text-white">
+              ${data[data.length - 1]?.close.toLocaleString() || '---'}
+            </p>
+            <div className="text-sm text-gray-500 font-mono mt-1">Current Price</div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="glass-panel p-6 rounded-2xl border-l-4 border-l-yellow-400"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <Zap className="text-yellow-400" size={24} />
+              <span className="text-xs font-mono text-gray-500 uppercase">RSI (14)</span>
+            </div>
+            <p className="text-2xl font-bold text-white">{prediction?.rsiValue || '---'}</p>
+            <div className="text-sm text-gray-500 font-mono mt-1">Momentum</div>
+          </motion.div>
 
           <button
             onClick={handlePredict}
-            className="w-full py-4 rounded-2xl bg-cyber-blue text-white font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2"
+            disabled={loading || data.length === 0}
+            className="w-full py-4 rounded-2xl bg-cyber-blue text-white font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <TrendingUp size={20} />
-            RUN QUANT PREDICTION
+            {loading ? <Activity className="animate-spin" /> : <TrendingUp size={20} />}
+            {loading ? 'ANALYZING...' : 'RUN PREDICTION'}
           </button>
         </div>
 
         {/* Chart Area */}
         <div className="lg:col-span-3 space-y-6">
-          <div className="glass-panel p-2 rounded-3xl">
+          <div className="glass-panel p-2 rounded-3xl relative min-h-[400px]">
+            {loading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-3xl">
+                <div className="text-cyber-blue flex flex-col items-center">
+                  <Activity className="animate-spin mb-2" size={32} />
+                  <span className="font-mono text-xs tracking-widest">FETCHING DATA STREAM...</span>
+                </div>
+              </div>
+            )}
             <TradingChart data={chartData} predictionData={predictionLines} />
           </div>
 
@@ -164,14 +208,6 @@ export default function Dashboard() {
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Footer Disclaimer */}
-      <footer className="pt-8 border-t border-gray-800 text-center">
-        <p className="text-gray-600 text-xs font-mono max-w-2xl mx-auto">
-          DISCLAIMER: SENTINEL IS AN ALGORITHMIC ANALYSIS TOOL. TRADING INVOLVES SIGNIFICANT RISK.
-          PAST PERFORMANCE IS NOT INDICATIVE OF FUTURE RESULTS.
-        </p>
-      </footer>
     </main>
   );
 }
