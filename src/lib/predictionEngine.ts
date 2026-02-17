@@ -56,10 +56,15 @@ export interface ProPredictionResult extends PredictionResult {
 }
 
 export const analyzeVolume = (data: PriceData[]): 'HIGH' | 'LOW' | 'NORMAL' => {
-    const recentVol = data.slice(-5).reduce((acc, curr) => acc + curr.close * 0.1, 0); // Mock volume calculation if real volume missing
-    // In a real scenario we would use 'volume' field. 
-    // Since our PriceData interface doesn't strictly enforce volume, we'll assume it's roughly proportional to candle size for this demo
-    // or better, let's update PriceData to include volume.
+    if (data.length < 10) return 'NORMAL';
+    const recent = data.slice(-5);
+    const older = data.slice(-10, -5);
+
+    const avgRecent = recent.reduce((sum, d) => sum + d.volume, 0) / 5;
+    const avgOlder = older.reduce((sum, d) => sum + d.volume, 0) / 5;
+
+    if (avgRecent > avgOlder * 1.5) return 'HIGH';
+    if (avgRecent < avgOlder * 0.5) return 'LOW';
     return 'NORMAL';
 };
 
@@ -71,6 +76,7 @@ export const generatePrediction = (data: PriceData[], data4h?: PriceData[]): Pro
     const ema20 = calculateEMA(closes, 20);
     const ema50 = calculateEMA(closes, 50);
     const rsi = calculateRSI(closes, 14);
+    const volAnalysis = analyzeVolume(data);
 
     const lastPrice = closes[closes.length - 1];
     const lastEMA20 = ema20[ema20.length - 1];
@@ -94,6 +100,15 @@ export const generatePrediction = (data: PriceData[], data4h?: PriceData[]): Pro
     }
 
     const trend4h = isUptrend ? 'UP' : 'DOWN';
+
+    // Volume Confirmation
+    if (volAnalysis === 'HIGH') {
+        signals.push('High Volume Confirmation');
+        confidence += 10;
+    } else if (volAnalysis === 'LOW') {
+        signals.push('Low Volume (Weak Trend)');
+        confidence -= 10;
+    }
 
     // RSI Logic
     if (rsi < 30) {

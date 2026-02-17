@@ -4,6 +4,7 @@ export interface PriceData {
     high: number;
     low: number;
     close: number;
+    volume: number;
 }
 
 /**
@@ -36,6 +37,7 @@ export const fetchMarketData = async (
             high: parseFloat(d[2]),
             low: parseFloat(d[3]),
             close: parseFloat(d[4]),
+            volume: parseFloat(d[5]),
         }));
     } catch (error) {
         console.error("Failed to fetch market data:", error);
