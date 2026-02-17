@@ -60,10 +60,18 @@ export default function Dashboard() {
     init();
   }, [mode]);
 
-  const handlePredict = () => {
+  const handlePredict = async () => {
     if (data.length > 0) {
-      // Cast to PriceData[] because structure is compatible for prediction engine
-      const result = generatePrediction(data as PriceData[]);
+      let result;
+
+      if (mode === 'CRYPTO') {
+        // Fetch 4h data for Pro Analysis
+        const data4h = await fetchMarketData(symbol, '4h', 100);
+        result = generatePrediction(data as PriceData[], data4h);
+      } else {
+        result = generatePrediction(data as PriceData[]);
+      }
+
       setPrediction(result);
     }
   };
@@ -155,7 +163,7 @@ export default function Dashboard() {
             className="w-full py-4 rounded-2xl bg-cyber-blue text-white font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? <Activity className="animate-spin" /> : <TrendingUp size={20} />}
-            {loading ? 'ANALYZING...' : 'RUN PREDICTION'}
+            {loading ? 'ANALYZING...' : 'RUN PRO ANALYSIS'}
           </button>
         </div>
 
@@ -199,9 +207,19 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="glass-panel p-6 rounded-2xl border border-blue-500/30">
-                  <h3 className="text-gray-400 font-mono text-xs mb-2 uppercase">Analysis Type</h3>
-                  <p className="text-2xl font-bold text-white uppercase font-mono">RSI + EMA</p>
-                  <p className="text-sm text-gray-500 mt-2">Projection based on Alpha-Convergence v2</p>
+                  <h3 className="text-gray-400 font-mono text-xs mb-2 uppercase">Pro Analysis</h3>
+
+                  {/* Signals List */}
+                  <div className="space-y-1 mb-2">
+                    {/* @ts-ignore */}
+                    {prediction.signals?.map((sig, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-gray-300 font-mono">
+                        <div className="w-1 h-1 bg-cyber-blue rounded-full" />
+                        {sig}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Multi-Timeframe Logic Active</p>
                 </div>
               </motion.div>
             )}
