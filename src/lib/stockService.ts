@@ -7,7 +7,7 @@ export interface StockData {
     volume: number;
 }
 
-const API_KEY = 'demo'; // Using 'demo' for development. User should replace with real key.
+const API_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY || 'demo';
 
 export const fetchStockData = async (symbol: string = 'IBM'): Promise<StockData[]> => {
     try {
